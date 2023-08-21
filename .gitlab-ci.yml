@@ -1,0 +1,41 @@
+stages:          
+  - build
+  - deploy
+variables:
+  IMAGE_NAME: "dhanyal/devops"
+  IMAGE_TAG: "1.5"
+  DEV_SERVER_IP:  35.154.230.2    
+build-image:
+  stage: build
+  image: docker:20.10.10
+
+  services:
+    - docker:20.10.10-dind
+
+  before_script:
+    - docker login -u $CI_DOCKER_USER -p $CI_DOCKER_PASSWORD 
+
+  script:
+    - echo "Building docker image"
+    - docker build -t $IMAGE_NAME:$IMAGE_TAG .
+    - docker images
+    - docker push $IMAGE_NAME:$IMAGE_TAG
+    
+deploy-on-aws:
+  stage: deploy
+  image: docker:20.10.10 
+  services:
+    - docker:20.10.10-dind
+  before_script:
+    - chmod 400 $SSH_KEY
+  script:
+    - echo "Deploying in AWS..."
+    - ssh -o StrictHostKeyChecking=no -i $SSH_KEY ubuntu@$DEV_SERVER_IP "
+        docker login -u $CI_DOCKER_USER -p $CI_DOCKER_PASSWORD &&
+        docker stop python || true &&
+        docker rm python || true &&
+        docker run --name python -d -p 3000:80 $IMAGE_NAME:$IMAGE_TAG "
+    
+
+
+
